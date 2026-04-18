@@ -1,0 +1,9 @@
+# Active reward weights for shaped reward (see experiment.apply_reward_config).
+# Only keys listed under `weights` are used; missing keys default as in code.
+weights:
+  wins: 1.0
+  bad_action: 1.0
+  lives: 0.0
+  gold: 0.0
+  turn: 0.0
+  team_power: 0.0
