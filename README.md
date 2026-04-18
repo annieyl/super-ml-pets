@@ -8,11 +8,28 @@ This repo includes a small **autoresearch** harness that proposes changes to `re
 
 ### Prerequisites
 
-1. Python environment with dependencies installed:
+Use **Python 3.8 or newer** (3.11+ recommended on Windows) so `numpy` and `scikit-learn` install from wheels without compiling.
+
+1. Python environment with dependencies installed.
+
+**Windows (recommended):** Stable-Baselines3 1.8 pins **`gym==0.21`**, which often fails to build under modern pip unless setuptools is pinned and `gym` is installed without build isolation. From the repo root run:
 
 ```powershell
+powershell -ExecutionPolicy Bypass -File .\install_deps.ps1
+```
+
+**macOS / Linux:** `chmod +x install_deps.sh && ./install_deps.sh`
+
+**Manual equivalent** (any OS):
+
+```powershell
+pip install -U pip
+pip install "setuptools>=59.5,<65.0" wheel
+pip install "gym==0.21.0" --no-build-isolation
 pip install -r requirements.txt
 ```
+
+**Anaconda / conda base:** install into a **dedicated virtual environment** (`python -m venv .venv` then activate). The base env already contains packages like `numba`, `gensim`, and `tables`; mixing them with `pip install -r requirements.txt` produces resolver warnings and hard conflicts (for example `numba 0.57` needs `numpy<1.25`, which this file respects—upgrading numpy in base can still break other conda tools).
 
 If you see `ModuleNotFoundError: No module named 'sb3_contrib'`, the RL stack did not install (for example because `pip` stopped at an earlier line in `requirements.txt`). Install it explicitly, then retry the full file:
 

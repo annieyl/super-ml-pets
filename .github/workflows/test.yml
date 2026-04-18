@@ -31,6 +31,8 @@ jobs:
         run: |
           pip install wheel flake8 pytest-cov
           pip install xvfbwrapper
+          pip install "setuptools>=59.5,<65.0" wheel
+          pip install "gym==0.21.0" --no-build-isolation
           pip install -r requirements.txt
         
       - name: Download test model
@@ -50,7 +52,7 @@ jobs:
     strategy:
       matrix:
         os: [windows-2019, ubuntu-20.04, macos-11]
-        python-version: ["3.7", "3.8", "3.9", "3.10"]
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
     steps:
       - uses: actions/checkout@v1
       - name: Set up Python ${{matrix.python-version}}
@@ -59,7 +61,10 @@ jobs:
           python-version: ${{matrix.python-version}}
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install "setuptools>=59.5,<65.0" wheel
+          pip install "gym==0.21.0" --no-build-isolation
+          pip install -r requirements.txt
 
       - name: Run tests
         run: python main.py --task train --nb_steps 1000 --nb_games 1000 --nb_retries 1
