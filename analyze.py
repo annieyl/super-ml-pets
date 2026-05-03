@@ -15,15 +15,18 @@ import urllib.request
 from typing import Any, Dict, List, Optional
 
 import yaml
+from dotenv import load_dotenv
 
 from reward_config import DEFAULT_WEIGHTS, load_reward_config
+
+# .env is not read by the OS or Python by default; load repo-root .env for GEMINI_API_KEY etc.
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 
 IDEA_PATH = "idea.md"
 REWARD_CONFIG_PATH = "reward_config.yaml"
 DEFAULT_GEMINI_CANDIDATES = [
     "gemini-2.5-flash",
     "gemini-2.5-pro",
-    
     "gemini-2.0-flash-lite"
 ]
 
@@ -242,6 +245,7 @@ def propose_next(
         return propose_with_gemini(idea, recent, current, best)
 
     rng = random.Random(seed)
+    print("can't find api key")
     return propose_heuristic(recent, current, rng)
 
 
