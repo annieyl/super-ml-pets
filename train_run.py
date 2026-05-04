@@ -43,6 +43,7 @@ def train_run(
     iter_index: int = 0,
     proposal: Optional[Dict[str, Any]] = None,
     seed: int = 0,
+    experiment_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     os.makedirs(results_dir, exist_ok=True)
 
@@ -95,6 +96,8 @@ def train_run(
         "weights": summary["weights"],
         "n_eval_games": summary["n_games"],
     }
+    if experiment_name:
+        full["experiment"] = experiment_name
     append_log(log_path, full)
 
     best_ckpt_marker = os.path.join(results_dir, "best_model_path.txt")

@@ -21,4 +21,5 @@
 log.txt
 proposal.json
 results/
+logs/
 .env

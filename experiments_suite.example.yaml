@@ -1,0 +1,18 @@
+# Example suite: python run_loop.py --experiment-suite experiments_suite.example.yaml
+baseline_reward_config: reward_config.experiment_baseline.yaml
+checkpoint: checkpoints/base_model
+reward_config: reward_config.yaml
+base_results_root: results
+finetune_steps: 2048
+eval_rows: 10
+eval_cols: 10
+seed: 0
+experiments:
+  - name: aggressive
+    idea: idea_aggressive.md
+    log: logs/aggressive.jsonl
+    iters: 30
+  - name: conservative
+    idea: idea_conservative.md
+    log: logs/conservative.jsonl
+    iters: 30

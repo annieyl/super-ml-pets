@@ -123,3 +123,4 @@ python analyze.py --log log.txt --out proposal.json --apply --snapshot-dir resul
 Command: `python run_loop.py --iters 5 --checkpoint checkpoints/base_model --finetune-steps 2048`
 ![alt text](image.png)
 
+Experimentation: `python run_loop.py --experiment-suite experiments_suite.example.yaml`                                           

@@ -11,10 +11,23 @@ import shutil
 import sys
 import time
 import warnings
-from typing import Any, Dict
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
+
+import yaml
 
 from analyze import apply_patch_to_yaml, propose_next, snapshot_config
 from train_run import train_run
+
+
+@dataclass
+class ExperimentSpec:
+    """One playstyle / prompt experiment: separate log and results subfolder."""
+
+    name: str
+    idea_path: str
+    log_path: str
+    n_iters: int
 
 
 def _warn_if_conda_and_venv() -> None:
@@ -39,6 +52,7 @@ def run_loop(
     eval_rows: int = 10,
     eval_cols: int = 10,
     seed: int = 0,
+    experiment_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     os.makedirs(results_root, exist_ok=True)
     last: Dict[str, Any] = {}
@@ -73,6 +87,7 @@ def run_loop(
             iter_index=i,
             proposal=proposal,
             seed=seed + i * 9973,
+            experiment_name=experiment_name,
         )
         train_eval_seconds = time.perf_counter() - t2
         last = out
@@ -100,6 +115,89 @@ def run_loop(
     return {"last": last, "total_runtime_seconds": round(time.perf_counter() - run_started, 3)}
 
 
+def run_experiments(
+    specs: List[ExperimentSpec],
+    *,
+    checkpoint_stem: str,
+    reward_config_path: str,
+    baseline_reward_config_path: str,
+    base_results_root: str = "results",
+    finetune_steps: int = 2048,
+    eval_rows: int = 10,
+    eval_cols: int = 10,
+    base_seed: int = 0,
+    truncate_logs: bool = True,
+) -> Dict[str, Any]:
+    """
+    Run several independent autoresearch tracks (e.g. aggressive vs conservative).
+
+    Before each track, copies ``baseline_reward_config_path`` onto ``reward_config_path`` so every
+    experiment starts from the same weights. Each spec uses its own ``log_path`` and
+    ``base_results_root / name`` for artifacts.
+    """
+    if not specs:
+        return {"experiments": []}
+
+    if not os.path.isfile(baseline_reward_config_path):
+        raise FileNotFoundError(f"Baseline reward config not found: {baseline_reward_config_path}")
+
+    summaries: List[Dict[str, Any]] = []
+    for idx, spec in enumerate(specs):
+        shutil.copy2(baseline_reward_config_path, reward_config_path)
+        log_dir = os.path.dirname(os.path.abspath(spec.log_path))
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
+        if truncate_logs:
+            open(spec.log_path, "w", encoding="utf-8").close()
+
+        exp_seed = base_seed + idx * 7919
+        out = run_loop(
+            n_iters=spec.n_iters,
+            checkpoint_stem=checkpoint_stem,
+            log_path=spec.log_path,
+            reward_config_path=reward_config_path,
+            idea_path=spec.idea_path,
+            results_root=os.path.join(base_results_root, spec.name),
+            finetune_steps=finetune_steps,
+            eval_rows=eval_rows,
+            eval_cols=eval_cols,
+            seed=exp_seed,
+            experiment_name=spec.name,
+        )
+        summaries.append({"name": spec.name, **out})
+
+    return {"experiments": summaries}
+
+
+def load_experiment_suite(path: str) -> Dict[str, Any]:
+    with open(path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+    raw = data.get("experiments") or []
+    specs: List[ExperimentSpec] = []
+    for item in raw:
+        specs.append(
+            ExperimentSpec(
+                name=str(item["name"]),
+                idea_path=str(item["idea"]),
+                log_path=str(item["log"]),
+                n_iters=int(item["iters"]),
+            )
+        )
+    return {
+        "specs": specs,
+        "baseline_reward_config": str(
+            data.get("baseline_reward_config") or "reward_config.experiment_baseline.yaml"
+        ),
+        "checkpoint": str(data.get("checkpoint") or os.path.join("checkpoints", "base_model")),
+        "reward_config": str(data.get("reward_config") or "reward_config.yaml"),
+        "base_results_root": str(data.get("base_results_root") or "results"),
+        "finetune_steps": int(data.get("finetune_steps") or 2048),
+        "eval_rows": int(data.get("eval_rows") or 10),
+        "eval_cols": int(data.get("eval_cols") or 10),
+        "seed": int(data.get("seed") or 0),
+    }
+
+
 def main() -> None:
     # Keep terminal output clean during long loops.
     warnings.filterwarnings("ignore")
@@ -121,21 +219,47 @@ def main() -> None:
     parser.add_argument("--eval-rows", type=int, default=10)
     parser.add_argument("--eval-cols", type=int, default=10)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--experiment-suite",
+        type=str,
+        default=None,
+        help="YAML suite (see experiments_suite.example.yaml) to run multiple experiments",
+    )
+    parser.add_argument(
+        "--append-experiment-logs",
+        action="store_true",
+        help="With --experiment-suite, do not truncate per-experiment log files before each run",
+    )
     args = parser.parse_args()
     _warn_if_conda_and_venv()
 
-    summary = run_loop(
-        n_iters=args.iters,
-        checkpoint_stem=args.checkpoint,
-        log_path=args.log,
-        reward_config_path=args.reward_config,
-        idea_path=args.idea,
-        results_root=args.results_root,
-        finetune_steps=args.finetune_steps,
-        eval_rows=args.eval_rows,
-        eval_cols=args.eval_cols,
-        seed=args.seed,
-    )
+    if args.experiment_suite:
+        suite = load_experiment_suite(args.experiment_suite)
+        summary = run_experiments(
+            suite["specs"],
+            checkpoint_stem=suite["checkpoint"],
+            reward_config_path=suite["reward_config"],
+            baseline_reward_config_path=suite["baseline_reward_config"],
+            base_results_root=suite["base_results_root"],
+            finetune_steps=suite["finetune_steps"],
+            eval_rows=suite["eval_rows"],
+            eval_cols=suite["eval_cols"],
+            base_seed=suite["seed"],
+            truncate_logs=not args.append_experiment_logs,
+        )
+    else:
+        summary = run_loop(
+            n_iters=args.iters,
+            checkpoint_stem=args.checkpoint,
+            log_path=args.log,
+            reward_config_path=args.reward_config,
+            idea_path=args.idea,
+            results_root=args.results_root,
+            finetune_steps=args.finetune_steps,
+            eval_rows=args.eval_rows,
+            eval_cols=args.eval_cols,
+            seed=args.seed,
+        )
     print(json.dumps(summary, indent=2, default=str))
 
 

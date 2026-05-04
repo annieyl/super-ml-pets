@@ -75,7 +75,7 @@ def _gemini_generate(
     api_key: str,
     model_name: str,
     payload: Dict[str, Any],
-    max_wait_seconds: float = 120.0,
+    max_wait_seconds: float = 600.0,
 ) -> Dict[str, Any]:
     deadline = time.monotonic() + max_wait_seconds
     sleep_seconds = 2.0
@@ -142,7 +142,7 @@ def propose_with_gemini(
     recent: List[Dict[str, Any]],
     current_weights: Dict[str, float],
     best: Optional[Dict[str, Any]] = None,
-    model: str = "gemini-2.5-flash",
+    model: str = "gemini-3.1-flash-lite",
 ) -> Dict[str, Any]:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
@@ -170,7 +170,7 @@ def propose_with_gemini(
         body = _gemini_generate(api_key, requested_model, payload)
     except urllib.error.HTTPError as e:
         err_text = e.read().decode("utf-8", errors="replace")
-        if e.code == 404:
+        if e.code == 404 or e.code==429:
             try:
                 available = _gemini_list_models(api_key)
             except Exception:
